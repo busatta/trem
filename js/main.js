@@ -1,6 +1,6 @@
 import * as THREE from 'three';
 import { World } from './world.js';
-import { buildTrain, setPantograph, TRAIN_TYPES } from './trains.js';
+import { buildTrain, setPantograph, setCabLight } from './trains.js';
 import { Sound, say, voice } from './audio.js';
 import { box, cylX, cylY, sphere, puffTexture } from './util.js';
 
@@ -59,7 +59,16 @@ const state = {
   lastHint: 0,
   saidGo: false,
   time: 0,
+  cabLight: false,
+  camBeforeStation: null,
+  songIdx: 0,
+  lastNote: 0,
 };
+
+// Música da buzina do trem elétrico: "Brilha, brilha, estrelinha"
+const NOTE_FREQ = { C: 523.25, D: 587.33, E: 659.25, F: 698.46, G: 783.99, A: 880 };
+const SONG = 'CCGGAAG FFEEDDC GGFFEED GGFFEED CCGGAAG FFEEDDC'.replace(/ /g, '').split('');
+const NOTE_COST = 0.04;
 
 // ---------------------------------------------------------------------------
 // Cargas
@@ -202,8 +211,10 @@ function selectTrain(type) {
   state.type = type;
   state.train = buildTrain(type);
   for (const v of state.train.vehicles) scene.add(v.root);
-  state.energy = 0;
+  state.energy = type === 'electric' ? 0.5 : 0;
   state.pant = state.pantTarget = 0;
+  state.songIdx = 0;
+  state.camBeforeStation = null;
   state.speed = 0;
   state.running = false;
   state.atStation = null;
@@ -219,6 +230,7 @@ function selectTrain(type) {
   headlight.position.copy(loco.lampPos);
   headlight.target.position.copy(loco.lampPos).add(new V3(0, -1.5, 20));
   loco.model.add(headlight, headlight.target);
+  setCabLight(loco, state.cabLight);
   placeTrain();
   updateHud(true);
 }
@@ -283,7 +295,7 @@ function buildPile() {
 const $ = id => document.getElementById(id);
 const ui = {
   go: $('goBtn'), horn: $('hornBtn'), energy: $('energyBtn'), speed: $('speedBtn'), cam: $('camBtn'),
-  action: $('actionBtn'), home: $('homeBtn'), day: $('dayBtn'), snd: $('soundBtn'), fs: $('fsBtn'),
+  action: $('actionBtn'), light: $('lightBtn'), home: $('homeBtn'), day: $('dayBtn'), snd: $('soundBtn'), fs: $('fsBtn'),
   stars: $('starCount'), fill: document.querySelector('#energyBtn .fill'), menu: $('menu'),
   energyIcon: $('energyIcon'), confetti: $('confetti'),
 };
@@ -316,6 +328,11 @@ function pressGo() {
   if (state.atStation) {
     state.ignore = state.atStation.id;
     state.atStation = null;
+    if (state.camBeforeStation) {
+      state.cam = state.camBeforeStation;
+      state.camBeforeStation = null;
+      camSnap = true;
+    }
   }
   if (!canMove()) {
     state.lastHint = 0;
@@ -328,13 +345,63 @@ function pressGo() {
 }
 
 function pressHorn() {
-  sound.horn(state.type);
   const loco = state.train.loco;
+  if (state.type === 'electric') {
+    playSongNote();
+    loco.hornBounce = 1;
+    return;
+  }
+  sound.horn(state.type);
   if (state.type === 'steam') {
     const p = loco.model.localToWorld(new V3(0.8, 5.0, -1.3));
     for (let i = 0; i < 6; i++) emit(p, new V3(rnd(1), 3 + Math.random() * 2, rnd(1)), 0xffffff, 0.5, 2.2, 1.1, 0.9);
   }
   loco.hornBounce = 1;
+}
+
+// Cada buzinada do trem elétrico toca a próxima nota da música e gasta um pouco da bateria.
+function playSongNote() {
+  if (state.energy < NOTE_COST) {
+    sound.empty();
+    state.lastHint = 0;
+    hint('A bateria acabou! Aperte o raio para carregar!');
+    return;
+  }
+  const now = performance.now();
+  if (now - state.lastNote > 8000) state.songIdx = 0; // ficou muito tempo parado: recomeça a música
+  state.lastNote = now;
+  state.energy = Math.max(0, state.energy - NOTE_COST);
+  sound.note(NOTE_FREQ[SONG[state.songIdx]]);
+  floatNote(state.songIdx);
+  state.songIdx++;
+  if (state.songIdx >= SONG.length) {
+    state.songIdx = 0;
+    setTimeout(() => {
+      sound.chime();
+      confetti(['🎵', '🎶', '⭐', '✨']);
+      say('Que música bonita!');
+    }, 500);
+  }
+}
+
+// Notinha musical subindo do botão da buzina
+function floatNote(i) {
+  const r = ui.horn.getBoundingClientRect();
+  const n = document.createElement('span');
+  n.className = 'float-note';
+  n.textContent = i % 2 ? '🎶' : '🎵';
+  n.style.left = `${r.left + r.width / 2}px`;
+  n.style.top = `${r.top}px`;
+  n.style.color = ['#e53935', '#fb8c00', '#fdd835', '#43a047', '#1e88e5', '#8e24aa'][i % 6];
+  document.body.appendChild(n);
+  setTimeout(() => n.remove(), 1300);
+}
+
+function pressLight() {
+  state.cabLight = !state.cabLight;
+  setCabLight(state.train.loco, state.cabLight);
+  sound.switchClick();
+  updateHud(true);
 }
 
 function pressEnergy() {
@@ -386,6 +453,7 @@ function pressSpeed() {
 }
 
 function pressCam() {
+  state.camBeforeStation = null;
   const i = (CAMS.indexOf(state.cam) + 1) % CAMS.length;
   state.cam = CAMS[i];
   state.yaw = 0;
@@ -400,6 +468,14 @@ function arrive(st) {
   state.speed = 0;
   state.s = stopPoint(st);
   sound.ding();
+  // Dentro da cabine não dá para ver a carga: vai para fora (e volta ao partir)
+  if (state.cam === 'cab') {
+    state.camBeforeStation = 'cab';
+    state.cam = 'front';
+    state.yaw = 0;
+    state.pitch = 0;
+    camSnap = true;
+  }
   if (st.kind === 'load') say(`Chegamos na fazenda! Vamos carregar ${CARGO[state.cargoType % CARGO.length].say}!`);
   else say('Chegamos na cidade! Vamos descarregar!');
 }
@@ -466,9 +542,8 @@ function finishDelivery(st) {
   updateHud(true);
 }
 
-function confetti() {
+function confetti(items = ['⭐', '🎉', '✨', '🌟', '🎈']) {
   const box = ui.confetti;
-  const items = ['⭐', '🎉', '✨', '🌟', '🎈'];
   for (let i = 0; i < 36; i++) {
     const s = document.createElement('span');
     s.textContent = items[i % items.length];
@@ -660,6 +735,8 @@ function update(dt) {
     const before = state.pant;
     state.pant += Math.sign(state.pantTarget - state.pant) * Math.min(Math.abs(state.pantTarget - state.pant), dt * 1.2);
     if (state.pant !== before) setPantograph(loco, state.pant);
+    // Com o pantógrafo no fio, a bateria vai carregando
+    if (state.pant > 0.98) state.energy = Math.min(1, state.energy + dt * 0.12);
   }
 
   // Velocidade alvo
@@ -721,7 +798,7 @@ function update(dt) {
   const sp01 = state.speed / FAST;
   if (loco.needles) {
     loco.needles[0].rotation.y = 1.2 - sp01 * 2.4;
-    loco.needles[1].rotation.y = 1.2 - (state.type === 'electric' ? state.pant : state.energy) * 2.4;
+    loco.needles[1].rotation.y = 1.2 - state.energy * 2.4;
     loco.needles[2].rotation.y = Math.sin(state.time * 3) * 0.2;
   }
   if (loco.fire) loco.fire.material.color.setRGB(0.4 + state.energy * 0.6, 0.1 + state.energy * (0.35 + Math.random() * 0.1), 0);
@@ -792,8 +869,9 @@ function updateHud(force) {
     goPulse: canMove() && !moving && !showAction && !state.busy,
     day: state.dayTarget,
     snd: sound.enabled,
+    light: state.cabLight,
   };
-  const energyVal = state.type === 'electric' ? state.pant : state.energy;
+  const energyVal = state.energy;
   ui.fill.style.transform = `scaleX(${energyVal})`;
   ui.fill.style.background = energyVal < 0.2 ? '#ef5350' : state.type === 'electric' ? '#ffd600' : '#66bb6a';
   if (!force && JSON.stringify(hud) === JSON.stringify(lastHud)) return;
@@ -810,10 +888,13 @@ function updateHud(force) {
   ui.stars.textContent = state.stars;
   ui.day.textContent = state.dayTarget > 0.5 ? '🌙' : '☀️';
   ui.snd.textContent = sound.enabled ? '🔊' : '🔇';
+  ui.horn.textContent = state.type === 'electric' ? '🎵' : '📯';
+  ui.light.classList.toggle('on', state.cabLight);
 }
 
 onTap(ui.go, pressGo);
 onTap(ui.horn, pressHorn);
+onTap(ui.light, pressLight);
 onTap(ui.energy, pressEnergy);
 onTap(ui.speed, pressSpeed);
 onTap(ui.cam, pressCam);
