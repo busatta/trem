@@ -1,0 +1,13 @@
+{
+  "name": "Trenzinho",
+  "short_name": "Trenzinho",
+  "lang": "pt-BR",
+  "start_url": "./",
+  "display": "fullscreen",
+  "orientation": "landscape",
+  "background_color": "#8fd3ff",
+  "theme_color": "#8fd3ff",
+  "icons": [
+    { "src": "icon.svg", "sizes": "any", "type": "image/svg+xml", "purpose": "any" }
+  ]
+}
