@@ -7,16 +7,20 @@ A criança escolhe um de três trens e passeia por um mundinho com fazenda, cida
 | Trem | Para andar | Botão especial |
 |---|---|---|
 | **Maria Fumaça** | colocar **carvão** (a fornalha acende e sai fumaça) | pá de carvão |
-| **Trem Elétrico** | levantar o **pantógrafo** até o fio (sai faísca!) | ⚡ |
+| **Trem Elétrico** | levantar o **pantógrafo** até o fio (sai faísca!); com ele no fio, a bateria carrega | ⚡ |
 | **Trem a Diesel** | abastecer com **diesel** (o motor liga com fumaça preta) | ⛽ |
 
 ## Como brincar
 
 - **Botão verde grande** ▶: anda. Com o trem andando ele fica vermelho ⏹ e serve para parar.
 - 📯 **Buzina**: cada trem tem a sua (a Maria Fumaça faz "piuí!"). Tocar no trem também buzina.
+- 🎵 **Música do trem elétrico**: cada buzinada toca a próxima nota de *Brilha, Brilha, Estrelinha*. Apertando várias vezes, a criança "toca" a música inteira.
+  Cada nota gasta um pouquinho da bateria; quando acaba, é só levantar o pantógrafo ⚡ para recarregar. Se ficar um tempo sem tocar, a música recomeça do início.
+- 💡 **Luz da cabine**: acende e apaga a luz dentro da cabine (as janelas também acendem, bonito de ver à noite).
 - 🐢 / 🐇: devagar ou rápido.
 - 🎥 **Câmera**: troca a visão: 😊 de frente (com o rostinho do trem), 🚂 de trás, 👀 **dentro da cabine**, 🌳 da beira do trilho e ☁️ lá do alto.
   Arrastar o dedo na tela gira a câmera (na cabine, dá para olhar para os lados).
+  Ao chegar numa estação com a câmera dentro da cabine, ela vai sozinha para fora para mostrar a carga, e volta para a cabine quando o trem parte.
 - **Estações**: na **Fazenda** o trem para sozinho e aparece o botão amarelo **Carregar** (presentes, madeira, maçãs, bolas, leite...).
   Na **Cidade** aparece **Descarregar**. Cada entrega vale uma ⭐.
 - 🌙 / ☀️: noite e dia (à noite o farol do trem acende, e as janelas e estrelas também).

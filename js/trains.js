@@ -97,6 +97,29 @@ function headlamp(v, x, y, z) {
   v.lampPos = new THREE.Vector3(x, y, z + 0.3);
 }
 
+// Luz dentro da cabine (a criança liga e desliga).
+function cabLight(v, x, y, z) {
+  const light = new THREE.PointLight(0xffe7a0, 0, 7, 1);
+  light.position.set(x, y - 0.3, z);
+  v.model.add(light);
+  v.model.add(cylY(0.22, 0.08, 0x555555, x, y + 0.04, z, 12));
+  const bulbMat = new THREE.MeshBasicMaterial({ color: 0x9e9e9e });
+  v.model.add(sphere(0.12, bulbMat, x, y - 0.08, z, 12));
+  v.cabLight = { light, bulbMat };
+}
+
+export function setCabLight(v, on) {
+  v.cabLight.light.intensity = on ? 6 : 0;
+  v.cabLight.bulbMat.color.set(on ? 0xfff59d : 0x9e9e9e);
+  if (v.glassMat) v.glassMat.emissiveIntensity = on ? 0.8 : 0;
+}
+
+// Vidro das janelas: acende junto com a luz da cabine.
+function glassMat(v) {
+  v.glassMat = new THREE.MeshLambertMaterial({ color: 0x1a2a3a, emissive: 0xffd54f, emissiveIntensity: 0 });
+  return v.glassMat;
+}
+
 // Painel da cabine (só aparece na visão de dentro).
 function cabInterior(v, z, y, extras, frame) {
   const g = new THREE.Group();
@@ -188,6 +211,7 @@ function buildSteam() {
     v.fire = fire;
   });
   v.cabPos = new THREE.Vector3(-0.8, 3.75, -3.2);
+  cabLight(v, 0.6, 4.1, -1.4);
   v.center();
   return v;
 }
@@ -219,6 +243,7 @@ function buildElectric() {
   const v = new Vehicle(10.6);
   const m = v.model;
   const green = 0x2e9e4f, yellow = 0xffd600, dark = 0x263238;
+  const glass = glassMat(v);
   m.add(box(2.2, 0.5, 9.6, dark, 0, 1.25, 0));
   const body = box(2.5, 2.4, 8.6, green, 0, 2.7, 0);
   m.add(body);
@@ -229,13 +254,13 @@ function buildElectric() {
     nose.scale.z = 0.55;
     nose.rotation.y = s > 0 ? 0 : Math.PI;
     m.add(nose);
-    const glass = box(1.6, 0.8, 0.1, 0x1a2a3a, 0, 3.35, s * 4.92);
-    m.add(glass);
-    v.hideInCab.push(glass);
+    const front = box(1.6, 0.8, 0.1, glass, 0, 3.35, s * 4.92);
+    m.add(front);
+    v.hideInCab.push(front);
   }
   addFace(v, 0, 2.45, 5.0, 0.62);
   for (const z of [-2.5, -0.8, 0.8, 2.5]) {
-    for (const x of [-1.26, 1.26]) m.add(box(0.05, 0.8, 1.2, 0x1a2a3a, x, 3.2, z));
+    for (const x of [-1.26, 1.26]) m.add(box(0.05, 0.8, 1.2, glass, x, 3.2, z));
   }
   m.add(box(2.2, 0.2, 8, 0x90a4ae, 0, 4.0, 0));
   headlamp(v, 0, 1.75, 5.15);
@@ -256,6 +281,7 @@ function buildElectric() {
   v.smoke = new THREE.Vector3(0, 5.6, -1.6);
   cabInterior(v, 4.35, 2.75, null, { z: 4.75, y: 3.35, h: 1.1, color: green });
   v.cabPos = new THREE.Vector3(-0.45, 3.5, 3.0);
+  cabLight(v, 0.6, 3.85, 4.1);
   v.center();
   setPantograph(v, 0);
   return v;
@@ -294,6 +320,7 @@ function buildDiesel() {
   const v = new Vehicle(10.4);
   const m = v.model;
   const orange = 0xf57c00, black = 0x212121, yellow = 0xffeb3b;
+  const glassM = glassMat(v);
   m.add(box(2.2, 0.5, 10, 0x37474f, 0, 1.25, 0));
   m.add(box(2.7, 0.12, 10.2, 0x546e7a, 0, 1.56, 0));
   // Capô comprido
@@ -308,12 +335,12 @@ function buildDiesel() {
   m.add(box(2.6, 2.7, 2.3, orange, 0, 2.95, 1.9));
   m.add(box(2.8, 0.2, 2.5, black, 0, 4.4, 1.9));
   for (const x of [-1.31, 1.31]) {
-    const side = box(0.05, 0.8, 1.4, 0x1a2a3a, x, 3.55, 1.9);
+    const side = box(0.05, 0.8, 1.4, glassM, x, 3.55, 1.9);
     m.add(side);
     v.hideInCab.push(side);
   }
   for (const x of [-0.62, 0.62]) {
-    const glass = box(1.0, 0.8, 0.08, 0x1a2a3a, x, 3.65, 3.06);
+    const glass = box(1.0, 0.8, 0.08, glassM, x, 3.65, 3.06);
     m.add(glass);
     v.hideInCab.push(glass);
   }
@@ -333,6 +360,7 @@ function buildDiesel() {
   v.bogie(3.3, 0.5);
   cabInterior(v, 2.75, 2.8);
   v.cabPos = new THREE.Vector3(-0.5, 3.85, 1.3);
+  cabLight(v, 0.6, 4.2, 2.7);
   v.center();
   return v;
 }

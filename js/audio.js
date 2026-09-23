@@ -179,6 +179,41 @@ export class Sound {
     }
   }
 
+  // Uma nota da música da buzina do trem elétrico
+  note(freq) {
+    if (!this.ctx) return;
+    const t0 = this.t;
+    const out = this.ctx.createGain();
+    this._env(out, t0, 0.02, 0.25, 0.3, 0.16);
+    const lp = this.ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 2600;
+    lp.connect(out).connect(this.master);
+    this._osc('square', freq, t0, 0.6).connect(lp);
+    const o2 = this._osc('triangle', freq * 2, t0, 0.6);
+    const g2 = this.ctx.createGain();
+    g2.gain.value = 0.5;
+    o2.connect(g2).connect(lp);
+  }
+
+  // Bipe triste: bateria vazia
+  empty() {
+    if (!this.ctx) return;
+    const t0 = this.t;
+    const o = this._osc('square', 330, t0, 0.35);
+    o.frequency.exponentialRampToValueAtTime(160, t0 + 0.3);
+    const g = this.ctx.createGain();
+    this._env(g, t0, 0.01, 0.1, 0.2, 0.06);
+    o.connect(g).connect(this.master);
+  }
+
+  // Clique do interruptor de luz
+  switchClick() {
+    if (!this.ctx) return;
+    this.clack(0.25);
+    setTimeout(() => this.clack(0.12), 40);
+  }
+
   _whistle(t0, dur, mult) {
     const out = this.ctx.createGain();
     this._env(out, t0, 0.04, dur, 0.15, 0.22);
