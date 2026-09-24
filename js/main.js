@@ -3,6 +3,7 @@ import { World } from './world.js';
 import { buildTrain, setPantograph, setCabLight } from './trains.js';
 import { Sound, say, voice } from './audio.js';
 import { box, cylX, cylY, sphere, puffTexture } from './util.js';
+import { Chase } from './chase.js';
 
 // ---------------------------------------------------------------------------
 // Preparação
@@ -318,7 +319,7 @@ function hint(text) {
 }
 
 function pressGo() {
-  if (state.busy) return;
+  if (state.busy || chase.active) return;
   if (state.running && canMove()) {
     state.running = false;
     if (state.speed > 3) sound.brake();
@@ -346,6 +347,7 @@ function pressGo() {
 
 function pressHorn() {
   const loco = state.train.loco;
+  chase.countHorn();
   if (state.type === 'electric') {
     playSongNote();
     loco.hornBounce = 1;
@@ -560,6 +562,53 @@ function confetti(items = ['⭐', '🎉', '✨', '🌟', '🎈']) {
 }
 
 // ---------------------------------------------------------------------------
+// Perseguição do touro: depois de muitas buzinadas ele vem correndo atrás do trem
+// ---------------------------------------------------------------------------
+function tailS() {
+  const { vehicles, offsets } = state.train;
+  const last = vehicles.length - 1;
+  return state.s + offsets[last] - vehicles[last].length / 2;
+}
+
+const chase = new Chase({
+  scene, track, sound, emit, state, tailS,
+  tunnelFactor: s => tunnelFactor(s),
+  canStart: () => !!state.train && !state.menu && !state.atStation && !state.busy,
+  addStars(n) {
+    const before = state.stars;
+    state.stars = Math.max(0, state.stars + n);
+    store.set('stars', state.stars);
+    updateHud(true);
+    return Math.abs(state.stars - before);
+  },
+  confetti: items => confetti(items),
+  onStart() {
+    state.chaseWasRunning = state.running;
+    if (state.cam === 'cab') {
+      state.camBeforeChase = 'cab';
+      state.cam = 'front';
+      camSnap = true;
+    }
+  },
+  onEnd(caught) {
+    state.running = caught ? false : state.chaseWasRunning;
+    if (state.camBeforeChase) {
+      state.cam = state.camBeforeChase;
+      state.camBeforeChase = null;
+      camSnap = true;
+    }
+    updateHud(true);
+  },
+});
+
+function pressRun() {
+  chase.tap();
+  const loco = state.train.loco;
+  const p = loco.model.localToWorld(new V3(0, 1, -3));
+  for (let i = 0; i < 3; i++) emit(p, new V3(rnd(3), 1 + Math.random(), rnd(3)), 0xffffff, 0.5, 2, 0.6, 0.8);
+}
+
+// ---------------------------------------------------------------------------
 // Toques na tela: arrastar gira a câmera, tocar numa vaca faz "muuu"
 // ---------------------------------------------------------------------------
 const raycaster = new THREE.Raycaster();
@@ -622,6 +671,8 @@ function tunnelFactor(s) {
 
 let camSnap = true;
 let stationBlend = 0;
+let chaseBlend = 0;
+const chasePos = new V3(), chaseLook = new V3(), chaseLastPos = new V3(), chaseLastLook = new V3();
 let lastStation = null;
 const camTarget = new V3();
 const locoPos = new V3();
@@ -717,6 +768,24 @@ function updateCamera(dt) {
     camera.position.lerp(sp, e);
     camera.lookAt(camTarget.clone().lerp(tp, e));
   }
+
+  // Na perseguição a câmera mostra o touro e o trem de lado
+  const wantChase = !!chase.active && !state.menu;
+  chaseBlend += Math.sign((wantChase ? 1 : 0) - chaseBlend) * Math.min(Math.abs((wantChase ? 1 : 0) - chaseBlend), dt * 1.5);
+  if (chase.cameraPose(chasePos, chaseLook)) {
+    chaseLastPos.copy(chasePos);
+    chaseLastLook.copy(chaseLook);
+  }
+  if (chaseBlend > 0.001 && !inCab) {
+    const e = chaseBlend * chaseBlend * (3 - 2 * chaseBlend);
+    camera.position.lerp(chaseLastPos, e);
+    camera.lookAt(camTarget.clone().lerp(chaseLastLook, e));
+  }
+  const shake = chase.shake(dt);
+  if (shake > 0) {
+    camera.position.x += rnd(shake * 1.5);
+    camera.position.y += rnd(shake * 1.5);
+  }
   camera.updateProjectionMatrix();
   camSnap = false;
 }
@@ -740,9 +809,11 @@ function update(dt) {
   }
 
   // Velocidade alvo
+  const chaseSpeed = chase.update(dt, state.time);
   let target = state.running && canMove() ? (state.fast ? FAST : SLOW) : 0;
+  if (chaseSpeed !== null) target = chaseSpeed;
   let arriving = null;
-  if (!state.menu && !state.atStation) {
+  if (!state.menu && !state.atStation && chaseSpeed === null) {
     for (const st of world.stations) {
       if (state.ignore === st.id) continue;
       const hasTask = st.kind === 'load' ? !state.cargoLoaded : state.cargoLoaded;
@@ -760,8 +831,10 @@ function update(dt) {
     const past = track.ahead(stopPoint(st), state.s);
     if (past > 20 && past < L / 2) state.ignore = null;
   }
-  if (state.speed < target) state.speed = Math.min(target, state.speed + dt * 3);
-  else state.speed = Math.max(target, state.speed - dt * 6);
+  const accel = chaseSpeed !== null ? 10 : 3;
+  const decel = chaseSpeed === 0 ? 40 : 6;
+  if (state.speed < target) state.speed = Math.min(target, state.speed + dt * accel);
+  else state.speed = Math.max(target, state.speed - dt * decel);
   // Chegou (ou ia passar do ponto neste quadro)
   if (arriving && arriving.d <= state.speed * dt + 0.4) {
     for (const st of world.stations) st.braked = false;
@@ -894,6 +967,7 @@ function updateHud(force) {
 
 onTap(ui.go, pressGo);
 onTap(ui.horn, pressHorn);
+onTap($('runBtn'), pressRun);
 onTap(ui.light, pressLight);
 onTap(ui.energy, pressEnergy);
 onTap(ui.speed, pressSpeed);
@@ -984,4 +1058,4 @@ renderer.setAnimationLoop(() => {
 document.body.classList.add('ready');
 
 // Ajuda para testes automáticos: abra com ?debug
-if (location.search.includes('debug')) window.trem = { state, world, stopPoint };
+if (location.search.includes('debug')) window.trem = { state, world, stopPoint, chase };
