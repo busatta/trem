@@ -17,6 +17,10 @@ A criança escolhe um de três trens e passeia por um mundinho com fazenda, cida
 - 🎵 **Música do trem elétrico**: cada buzinada toca a próxima nota de *Brilha, Brilha, Estrelinha*. Apertando várias vezes, a criança "toca" a música inteira.
   Cada nota gasta um pouquinho da bateria; quando acaba, é só levantar o pantógrafo ⚡ para recarregar. Se ficar um tempo sem tocar, a música recomeça do início.
 - 💡 **Luz da cabine**: acende e apaga a luz dentro da cabine (as janelas também acendem, bonito de ver à noite).
+- 🐂 **O touro bravo!** Depois de **30 buzinadas**, um touro vem correndo atrás do trem, com uma musiquinha de tensão.
+  Aparece um botão laranja **💨 Corre!**: quanto mais rápido a criança aperta, mais rápido o trem foge. Em cima aparece o touro chegando perto do trem.
+  Aguentando 12 segundos sem ser pego, o trem escapa e ganha **3 estrelas** ⭐. Se o touro pegar, perde **3 estrelas** e o trem para.
+  (Apertando umas 2 vezes por segundo já dá para escapar. As regras ficam no começo de `js/chase.js`, fáceis de mudar.)
 - 🐢 / 🐇: devagar ou rápido.
 - 🎥 **Câmera**: troca a visão: 😊 de frente (com o rostinho do trem), 🚂 de trás, 👀 **dentro da cabine**, 🌳 da beira do trilho e ☁️ lá do alto.
   Arrastar o dedo na tela gira a câmera (na cabine, dá para olhar para os lados).
@@ -72,3 +76,4 @@ python3 -m http.server 8000
   - `js/world.js`: trilho, terreno, estações, túnel, ponte, fazenda, cidade
   - `js/trains.js`: modelos 3D dos trens e vagões
   - `js/audio.js`: sons e voz
+  - `js/chase.js`: a perseguição do touro

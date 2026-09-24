@@ -378,12 +378,13 @@ export class Sound {
     n.connect(hp).connect(ng).connect(this.master);
   }
 
-  moo() {
+  // pitch < 1 deixa o mugido mais grosso (touro bravo)
+  moo(pitch = 1) {
     if (!this.ctx) return;
     const t0 = this.t;
-    const o = this._osc('sawtooth', 150, t0, 1.3);
-    o.frequency.linearRampToValueAtTime(175, t0 + 0.3);
-    o.frequency.linearRampToValueAtTime(115, t0 + 1.2);
+    const o = this._osc('sawtooth', 150 * pitch, t0, 1.3);
+    o.frequency.linearRampToValueAtTime(175 * pitch, t0 + 0.3);
+    o.frequency.linearRampToValueAtTime(115 * pitch, t0 + 1.2);
     const lfo = this._osc('sine', 5, t0, 1.3);
     const lfoG = this.ctx.createGain();
     lfoG.gain.value = 4;
@@ -397,6 +398,122 @@ export class Sound {
     const g = this.ctx.createGain();
     this._env(g, t0, 0.15, 0.7, 0.35, 0.4);
     o.connect(f1).connect(g).connect(this.master);
+  }
+
+  // ----- Perseguição do touro -----
+
+  // Musiquinha de tensão: baixo rápido + bumbo. intensity 0..1 acelera.
+  startTension() {
+    if (!this.ctx || this.tension) return;
+    this.tension = { step: 0, next: this.t + 0.05, intensity: 0 };
+    this.tensionTimer = setInterval(() => this._tensionTick(), 50);
+  }
+
+  setTension(x) {
+    if (this.tension) this.tension.intensity = Math.max(0, Math.min(1, x));
+  }
+
+  stopTension() {
+    clearInterval(this.tensionTimer);
+    this.tension = null;
+  }
+
+  _tensionTick() {
+    const T = this.tension;
+    if (!T) return;
+    const stepDur = 60 / (140 + T.intensity * 70) / 2;
+    if (T.next < this.t) T.next = this.t + 0.02; // aba ficou parada
+    while (T.next < this.t + 0.15) {
+      this._tensionStep(T.step, T.next, stepDur, T.intensity);
+      T.next += stepDur;
+      T.step++;
+    }
+  }
+
+  _tensionStep(step, t0, d, intensity) {
+    const bass = [110, 110, 130.81, 110, 146.83, 110, 155.56, 146.83];
+    const f = bass[step % 8];
+    const lp = this.ctx.createBiquadFilter();
+    lp.type = 'lowpass';
+    lp.frequency.value = 600 + intensity * 900;
+    const g = this.ctx.createGain();
+    this._env(g, t0, 0.005, d * 0.4, d * 0.4, 0.13);
+    lp.connect(g).connect(this.master);
+    this._osc('square', f, t0, d).connect(lp);
+    if (step % 2 === 0) {
+      // bumbo
+      const k = this._osc('sine', 130, t0, 0.18);
+      k.frequency.exponentialRampToValueAtTime(40, t0 + 0.15);
+      const kg = this.ctx.createGain();
+      this._env(kg, t0, 0.003, 0.02, 0.13, 0.5);
+      k.connect(kg).connect(this.master);
+    }
+    if (intensity > 0.5 && step % 2 === 1) {
+      // alarme agudo quando o touro está perto
+      const a = this._osc('triangle', f * 4, t0, d);
+      const ag = this.ctx.createGain();
+      this._env(ag, t0, 0.005, d * 0.3, d * 0.3, 0.05 * intensity);
+      a.connect(ag).connect(this.master);
+    }
+  }
+
+  whoosh() {
+    if (!this.ctx) return;
+    const t0 = this.t;
+    const src = this._noise(0.25);
+    const bp = this.ctx.createBiquadFilter();
+    bp.type = 'bandpass';
+    bp.frequency.setValueAtTime(500, t0);
+    bp.frequency.exponentialRampToValueAtTime(2500, t0 + 0.2);
+    const g = this.ctx.createGain();
+    this._env(g, t0, 0.01, 0.05, 0.15, 0.18);
+    src.connect(bp).connect(g).connect(this.master);
+  }
+
+  bonk() {
+    if (!this.ctx) return;
+    const t0 = this.t;
+    const o = this._osc('sine', 220, t0, 0.4);
+    o.frequency.exponentialRampToValueAtTime(60, t0 + 0.3);
+    const g = this.ctx.createGain();
+    this._env(g, t0, 0.005, 0.05, 0.3, 0.6);
+    o.connect(g).connect(this.master);
+    this.clack(0.4);
+  }
+
+  // Uó-uó-uóóó (perdeu)
+  sadTrombone() {
+    if (!this.ctx) return;
+    [[392, 0.35], [370, 0.35], [349, 0.35], [330, 1.0]].reduce((t, [f, d]) => {
+      const o = this._osc('sawtooth', f, t, d);
+      if (d > 0.5) {
+        const lfo = this._osc('sine', 6, t, d);
+        const lg = this.ctx.createGain();
+        lg.gain.value = 6;
+        lfo.connect(lg).connect(o.frequency);
+      }
+      const lp = this.ctx.createBiquadFilter();
+      lp.type = 'lowpass';
+      lp.frequency.value = 900;
+      const g = this.ctx.createGain();
+      this._env(g, t, 0.03, d * 0.7, d * 0.3, 0.12);
+      o.connect(lp).connect(g).connect(this.master);
+      return t + d;
+    }, this.t + 0.3);
+  }
+
+  // Tan-tan-tan-tãã! (escapou)
+  fanfare() {
+    if (!this.ctx) return;
+    [[523, 0.14], [523, 0.14], [523, 0.14], [659, 0.5], [587, 0.2], [784, 0.8]].reduce((t, [f, d]) => {
+      for (const [type, mult, vol] of [['square', 1, 0.08], ['triangle', 2, 0.06]]) {
+        const o = this._osc(type, f * mult, t, d);
+        const g = this.ctx.createGain();
+        this._env(g, t, 0.01, d * 0.6, d * 0.35, vol);
+        o.connect(g).connect(this.master);
+      }
+      return t + d + 0.02;
+    }, this.t);
   }
 }
 
